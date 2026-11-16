@@ -1,0 +1,64 @@
+name: Update dashboard
+
+on:
+  schedule:
+    # Times are UTC. 22:17 is after the US close in both winter and summer. The other
+    # two save the day's bars at midday and retry if Yahoo refused a download.
+    - cron: "17 17,22 * * 1-5"
+    - cron: "17 2 * * 2-6"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      # The bar cache is how the 1-minute history grows past Yahoo's 30 days:
+      # every run restores the newest copy and saves a new one.
+      - uses: actions/cache@v6
+        with:
+          path: data
+          key: bars-${{ github.run_id }}
+          restore-keys: bars-
+
+      - run: python build.py
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      # GitHub pauses schedules in repositories with no activity for 60 days.
+      # Re-enabling the workflow resets that clock.
+      - if: github.event_name == 'schedule'
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

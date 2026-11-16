@@ -1,0 +1,8 @@
+.venv/
+data/
+results/
+site/
+.claude/
+__pycache__/
+*.pyc
+.env
