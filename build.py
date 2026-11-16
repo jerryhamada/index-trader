@@ -29,7 +29,12 @@ def main() -> None:
 
     shutil.rmtree(SITE, ignore_errors=True)
     (SITE / "detail").mkdir(parents=True)
-    shutil.copy(ROOT / "dashboard.html", SITE / "index.html")
+    # Tell the page it has no server behind it, so it reads the prebuilt files straight away.
+    page = (ROOT / "dashboard.html").read_text()
+    hosted = page.replace("HOSTED = false", "HOSTED = true", 1)
+    if hosted == page:
+        raise RuntimeError("dashboard.html no longer has the HOSTED flag")
+    (SITE / "index.html").write_text(hosted)
     (SITE / "state.json").write_text(json.dumps(data))
 
     scan_start = data["year"]["scan_start"]
